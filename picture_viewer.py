@@ -11,6 +11,7 @@ from HandLandmarks import handLandmarks
 from GestureRecognition import gestureRecognition, staticGestureRec
 from GestureRecognition import gestureRecognition, staticGestureRec
 import time
+import shutil
 
 commands = {1: "OK",
             2: "thumb",
@@ -27,11 +28,12 @@ commands = {1: "OK",
 
 
 class pictureViewer(Ui_MainWindow, QMainWindow):
+
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
         self.setupUi(self)
-        self.currentPictureList=[]
-        self.currentIndex=0
+        self.currentPictureList = []
+        self.currentIndex = 0
         self.sideBarAction.setChecked(False)
         self.sideBarCheckBox.setChecked(False)
         self.cameraViewAction.setChecked(False)
@@ -41,6 +43,7 @@ class pictureViewer(Ui_MainWindow, QMainWindow):
         self.cameraViewAction.triggered.connect(self.onCameraViewAction)
         self.cameraViewCheckBox.stateChanged.connect(self.onCameraViewCheckBox)
         self.openDIrButton.clicked.connect(self.openDir)
+        self.importFileButton.clicked.connect(self.importPicture)
         self.pictureListWidget.itemClicked.connect(
             self.onPictureListWidgetItemClicked)
         self.mainPictureView.resizeEvent = self.onMainPictureViewResizeEvent
@@ -51,26 +54,27 @@ class pictureViewer(Ui_MainWindow, QMainWindow):
 
     def initLoadPicture(self):
         self.pictureListWidget.clear()
-        self.currentPictureList=[]
-        self.dirPath=os.path.join(os.getcwd(),'picture') 
+        self.currentPictureList = []
+        self.dirPath = os.path.join(os.getcwd(), 'picture')
         for path in os.listdir(self.dirPath):
             if path.endswith('jpg') or path.endswith('png'):
                 self.pictureListWidget.addItem(path)
                 self.currentPictureList.append(path)
-        self.currentIndex=0
+        self.currentIndex = 0
         self.pictureListWidget.setCurrentRow(self.currentIndex)
-        picturePath=os.path.join(self.dirPath,self.currentPictureList[self.currentIndex])
+        picturePath = os.path.join(
+            self.dirPath, self.currentPictureList[self.currentIndex])
         pixmap = QPixmap(picturePath)
-        size=self.mainPictureView.size()
-        pixmap=pixmap.scaled(size,QtCore.Qt.KeepAspectRatio)
+        size = self.mainPictureView.size()
+        pixmap = pixmap.scaled(size, QtCore.Qt.KeepAspectRatio)
         self.mainPictureView.setPixmap(pixmap)
-    
+
     def showCameraView(self):
         # fps统计
         video = cv.VideoCapture(0)
         cTime = 0
         pTime = 0
-        
+
         flipCTime = 3
         flipPTime = 0
 
@@ -89,8 +93,8 @@ class pictureViewer(Ui_MainWindow, QMainWindow):
             ret, frame = video.read()
             frame = cv.flip(frame, 1)
             if ret:
-                command=0
-                precommand=0
+                command = 0
+                precommand = 0
                 # 手部关键点检测
                 landmarks = handLandmarks(frame)
                 if not isinstance(landmarks, str):
@@ -99,7 +103,6 @@ class pictureViewer(Ui_MainWindow, QMainWindow):
                         frame, landmarks, preCenter)
                     preCenter = curCenter
 
-                
                 # 帧率统计
                 cTime = time.time()  # 现在的时间
                 fps = 1 / (cTime - pTime)
@@ -110,12 +113,12 @@ class pictureViewer(Ui_MainWindow, QMainWindow):
                     cv.putText(frame, commands[command], (170, 50),
                                cv.FONT_HERSHEY_COMPLEX_SMALL, 2, (0, 0, 255), thickness=2)
                 if command != 0 and self.pictureListWidget.count() > 0:
-                    
+
                     precommand = command
-                    
-                    if command in [8,9]:
-                        flipCTime=time.time()
-                        if flipCTime-flipPTime>1.5:
+
+                    if command in [8, 9]:
+                        flipCTime = time.time()
+                        if flipCTime-flipPTime > 1.5:
                             if command == 8:
                                 if self.currentIndex > 0:
                                     self.currentIndex -= 1
@@ -123,17 +126,41 @@ class pictureViewer(Ui_MainWindow, QMainWindow):
                                 if self.currentIndex < self.pictureListWidget.count()-1:
                                     self.currentIndex += 1
                             print("switch")
-                            print("flipPTime:",flipPTime)
-                            print("flipCTime:",flipCTime)
+                            print("flipPTime:", flipPTime)
+                            print("flipCTime:", flipCTime)
                             print()
-                            self.pictureListWidget.setCurrentRow(self.currentIndex)
-                            picturePath=os.path.join(self.dirPath,self.currentPictureList[self.currentIndex])
+                            self.pictureListWidget.setCurrentRow(
+                                self.currentIndex)
+                            picturePath = os.path.join(
+                                self.dirPath, self.currentPictureList[self.currentIndex])
                             pixmap = QPixmap(picturePath)
-                            size=self.mainPictureView.size()
-                            pixmap=pixmap.scaled(size,QtCore.Qt.KeepAspectRatio)
+                            size = self.mainPictureView.size()
+                            pixmap = pixmap.scaled(
+                                size, QtCore.Qt.KeepAspectRatio)
                             self.mainPictureView.setPixmap(pixmap)
-                        flipPTime=flipCTime
-                    
+                        flipPTime = flipCTime
+
+                    elif command == 2 or command == 6:
+                        # 点赞
+                        print("点赞")
+                        currentItem = self.pictureListWidget.takeItem(
+                            self.currentIndex)
+                        self.pictureListWidget.insertItem(0, currentItem)
+                        self.pictureListWidget.setCurrentRow(0)
+
+                        currentItem.setBackground(QtGui.QColor("red"))
+
+                        currentPicture = self.currentPictureList.pop(
+                            self.currentIndex)
+                        self.currentPictureList.insert(0, currentPicture)
+                        self.currentIndex = 0
+
+                    elif command == 4 or command == 3:
+                        print("踩")
+                        currentItem = self.pictureListWidget.item(
+                            self.currentIndex)
+                        currentItem.setBackground(QtGui.QColor("blue"))
+
                 QtImgBuf = cv.cvtColor(frame, cv.COLOR_BGR2BGRA)
                 QtImg = QImage(
                     QtImgBuf.data, QtImgBuf.shape[1], QtImgBuf.shape[0], QImage.Format_RGB32)
@@ -156,6 +183,29 @@ class pictureViewer(Ui_MainWindow, QMainWindow):
                     self.pictureListWidget.addItem(path)
                     self.currentPictureList.append(path)
             self.pictureListWidget.repaint()
+
+    def importPicture(self):
+        if self.dirPath:
+            picturePath = QFileDialog.getOpenFileName(
+                self, '选择图片', self.dirPath, 'Image files(*.jpg *.png)')
+        else:
+            picturePath = QFileDialog.getOpenFileName(
+                self, '选择图片', './', 'Image files(*.jpg *.png)')
+        if not picturePath[0]:
+            return
+
+        fileName = picturePath[0]
+        newFileName = os.path.basename(fileName)
+        newFilePath = os.path.join(
+            self.dirPath, newFileName)
+
+        if not os.path.exists(newFilePath):
+            shutil.copy2(fileName, newFilePath)
+            self.pictureListWidget.addItem(newFileName)
+            self.currentPictureList.append(newFilePath)
+            self.pictureListWidget.repaint()
+        else:
+            QMessageBox.information(self, '提示', '文件已存在')
 
     def onPictureListWidgetItemClicked(self, item):
         self.currentIndex = self.pictureListWidget.currentRow()

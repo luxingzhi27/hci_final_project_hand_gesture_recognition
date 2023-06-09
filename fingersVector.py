@@ -13,7 +13,12 @@ def vectorAngle(p1,p2,p3):
     c = math.sqrt((p2[0] - p3[0]) ** 2 + (p2[1] - p3[1]) ** 2)
     a = math.sqrt((p3[0] - p1[0]) ** 2 + (p3[1] - p1[1]) ** 2)
     if ((2 * b * c)>1e-10):
-        angle = math.acos(((b ** 2 + c ** 2 - a ** 2) / (2 * b * c)))
+        cos=(b ** 2 + c ** 2 - a ** 2) / (2 * b * c)
+        if cos>1:
+            cos=1
+        elif cos<-1:
+            cos=-1
+        angle = math.acos(cos)
     return math.degrees(angle)
 
 # 由坐标点构造向量

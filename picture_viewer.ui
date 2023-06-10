@@ -81,19 +81,6 @@
            </widget>
           </item>
           <item>
-           <spacer name="horizontalSpacer_2">
-            <property name="orientation">
-             <enum>Qt::Horizontal</enum>
-            </property>
-            <property name="sizeHint" stdset="0">
-             <size>
-              <width>40</width>
-              <height>20</height>
-             </size>
-            </property>
-           </spacer>
-          </item>
-          <item>
            <widget class="QLabel" name="cameraView">
             <property name="text">
              <string/>
@@ -105,14 +92,7 @@
         <item>
          <layout class="QHBoxLayout" name="horizontalLayout">
           <item>
-           <widget class="QPushButton" name="openFileButton">
-            <property name="text">
-             <string>打开图片</string>
-            </property>
-           </widget>
-          </item>
-          <item>
-           <widget class="QPushButton" name="openDIrButton">
+           <widget class="QPushButton" name="openDirButton">
             <property name="text">
              <string>打开文件夹</string>
             </property>
@@ -142,6 +122,13 @@
            <widget class="QPushButton" name="likeButton">
             <property name="text">
              <string>点赞</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QPushButton" name="dislikeButton">
+            <property name="text">
+             <string>取消点赞</string>
             </property>
            </widget>
           </item>
@@ -180,9 +167,8 @@
     <property name="title">
      <string>文件</string>
     </property>
-    <addaction name="openFile"/>
-    <addaction name="openDIr"/>
-    <addaction name="importFile"/>
+    <addaction name="openDirAction"/>
+    <addaction name="importFileAction"/>
    </widget>
    <widget class="QMenu" name="view">
     <property name="title">
@@ -199,12 +185,12 @@
     <string>打开</string>
    </property>
   </action>
-  <action name="openDIr">
+  <action name="openDirAction">
    <property name="text">
     <string>打开文件夹</string>
    </property>
   </action>
-  <action name="importFile">
+  <action name="importFileAction">
    <property name="text">
     <string>导入图片</string>
    </property>

@@ -1,8 +1,8 @@
 import typing
 from PyQt5 import QtCore, QtGui
 from picture_viewer_ui import Ui_MainWindow
-from PyQt5.QtWidgets import QMainWindow, QApplication, QGraphicsScene, QGraphicsPixmapItem, QFileDialog, QMessageBox, QWidget, QLabel, QHBoxLayout
-from PyQt5.QtGui import QPixmap, QImage
+from PyQt5.QtWidgets import QMainWindow, QApplication, QGraphicsScene, QGraphicsPixmapItem, QFileDialog, QMessageBox, QWidget, QLabel, QHBoxLayout, QListWidgetItem
+from PyQt5.QtGui import QPixmap, QImage, QIcon
 from PyQt5.QtCore import QItemSelection
 import os
 import threading
@@ -42,15 +42,55 @@ class pictureViewer(Ui_MainWindow, QMainWindow):
         self.sideBarCheckBox.stateChanged.connect(self.onSideBarCheckBox)
         self.cameraViewAction.triggered.connect(self.onCameraViewAction)
         self.cameraViewCheckBox.stateChanged.connect(self.onCameraViewCheckBox)
-        self.openDIrButton.clicked.connect(self.openDir)
+        self.openDirButton.clicked.connect(self.openDir)
         self.importFileButton.clicked.connect(self.importPicture)
+        self.dislikeButton.clicked.connect(self.dislike)
+        self.likeButton.clicked.connect(self.like)
+        self.openDirAction.triggered.connect(self.openDir)
+        self.importFileAction.triggered.connect(self.importPicture)
+        self.nextButton.clicked.connect(self.next)
+        self.lastButton.clicked.connect(self.pre)
         self.pictureListWidget.itemClicked.connect(
             self.onPictureListWidgetItemClicked)
         self.mainPictureView.resizeEvent = self.onMainPictureViewResizeEvent
         self.dirPath = None
         self.done = False
+        self.cameraViewIsHide = False
         self.initLoadPicture()
         threading.Thread(target=self.showCameraView).start()
+
+    def addItem(self, name):
+        item = QListWidgetItem()
+        widget = QWidget()
+        layout = QHBoxLayout()
+        widget.setLayout(layout)
+        fileName = QLabel(name)
+        layout.addWidget(fileName)
+        item.setSizeHint(widget.sizeHint())
+        self.pictureListWidget.addItem(item)
+        self.pictureListWidget.setItemWidget(item, widget)
+
+    def next(self):
+        if self.currentIndex < self.pictureListWidget.count()-1:
+            self.currentIndex += 1
+            self.pictureListWidget.setCurrentRow(self.currentIndex)
+            picturePath = os.path.join(
+                self.dirPath, self.currentPictureList[self.currentIndex])
+            pixmap = QPixmap(picturePath)
+            size = self.mainPictureView.size()
+            pixmap = pixmap.scaled(size, QtCore.Qt.KeepAspectRatio)
+            self.mainPictureView.setPixmap(pixmap)
+
+    def pre(self):
+        if self.currentIndex > 0:
+            self.currentIndex -= 1
+            self.pictureListWidget.setCurrentRow(self.currentIndex)
+            picturePath = os.path.join(
+                self.dirPath, self.currentPictureList[self.currentIndex])
+            pixmap = QPixmap(picturePath)
+            size = self.mainPictureView.size()
+            pixmap = pixmap.scaled(size, QtCore.Qt.KeepAspectRatio)
+            self.mainPictureView.setPixmap(pixmap)
 
     def initLoadPicture(self):
         self.pictureListWidget.clear()
@@ -58,7 +98,7 @@ class pictureViewer(Ui_MainWindow, QMainWindow):
         self.dirPath = os.path.join(os.getcwd(), 'picture')
         for path in os.listdir(self.dirPath):
             if path.endswith('jpg') or path.endswith('png'):
-                self.pictureListWidget.addItem(path)
+                self.addItem(path)
                 self.currentPictureList.append(path)
         self.currentIndex = 0
         self.pictureListWidget.setCurrentRow(self.currentIndex)
@@ -112,7 +152,7 @@ class pictureViewer(Ui_MainWindow, QMainWindow):
                 if command != 0:
                     cv.putText(frame, commands[command], (170, 50),
                                cv.FONT_HERSHEY_COMPLEX_SMALL, 2, (0, 0, 255), thickness=2)
-                if command != 0 and self.pictureListWidget.count() > 0:
+                if command != 0 and self.pictureListWidget.count() > 0 and precommand != command:
 
                     precommand = command
 
@@ -141,36 +181,28 @@ class pictureViewer(Ui_MainWindow, QMainWindow):
                         flipPTime = flipCTime
 
                     elif command == 2 or command == 6:
-                        # 点赞
-                        print("点赞")
-                        currentItem = self.pictureListWidget.takeItem(
-                            self.currentIndex)
-                        self.pictureListWidget.insertItem(0, currentItem)
-                        self.pictureListWidget.setCurrentRow(0)
+                        self.like()
 
-                        currentItem.setBackground(QtGui.QColor("red"))
+                    elif command == 5 or command == 12:
+                        self.dislike()
 
-                        currentPicture = self.currentPictureList.pop(
-                            self.currentIndex)
-                        self.currentPictureList.insert(0, currentPicture)
-                        self.currentIndex = 0
-
-                    elif command == 4 or command == 3:
-                        print("踩")
-                        currentItem = self.pictureListWidget.item(
-                            self.currentIndex)
-                        currentItem.setBackground(QtGui.QColor("blue"))
-
-                QtImgBuf = cv.cvtColor(frame, cv.COLOR_BGR2BGRA)
-                QtImg = QImage(
-                    QtImgBuf.data, QtImgBuf.shape[1], QtImgBuf.shape[0], QImage.Format_RGB32)
-                self.cameraView.setPixmap(QPixmap.fromImage(QtImg))
-                size = QtImg.size()
-                self.cameraView.resize(size)
+                if not self.cameraViewIsHide:
+                    QtImgBuf = cv.cvtColor(frame, cv.COLOR_BGR2BGRA)
+                    QtImg = QImage(
+                        QtImgBuf.data, QtImgBuf.shape[1], QtImgBuf.shape[0], QImage.Format_RGB32)
+                    self.cameraView.setPixmap(QPixmap.fromImage(QtImg))
+                    size = QtImg.size()
+                    self.cameraView.resize(size)
                 if self.done:
                     break
 
         video.release()
+
+    def dislike(self):
+        self.pictureListWidget.currentItem().setIcon(QIcon())
+
+    def like(self):
+        self.pictureListWidget.currentItem().setIcon(QIcon("resource/heart.png"))
 
     def openDir(self):
         self.dirPath = QFileDialog.getExistingDirectory(self, '选择文件夹', './')
@@ -180,7 +212,7 @@ class pictureViewer(Ui_MainWindow, QMainWindow):
             print(self.dirPath)
             for path in os.listdir(self.dirPath):
                 if path.endswith('jpg') or path.endswith('png'):
-                    self.pictureListWidget.addItem(path)
+                    self.addItem(path)
                     self.currentPictureList.append(path)
             self.pictureListWidget.repaint()
 
@@ -201,15 +233,16 @@ class pictureViewer(Ui_MainWindow, QMainWindow):
 
         if not os.path.exists(newFilePath):
             shutil.copy2(fileName, newFilePath)
-            self.pictureListWidget.addItem(newFileName)
-            self.currentPictureList.append(newFilePath)
+            self.addItem(newFileName)
+            self.currentPictureList.append(newFileName)
             self.pictureListWidget.repaint()
         else:
             QMessageBox.information(self, '提示', '文件已存在')
 
     def onPictureListWidgetItemClicked(self, item):
         self.currentIndex = self.pictureListWidget.currentRow()
-        pixmap = QPixmap(os.path.join(self.dirPath, item.text()))
+        pixmap = QPixmap(os.path.join(
+            self.dirPath, self.currentPictureList[self.currentIndex]))
         size = self.mainPictureView.size()
         pixmap = pixmap.scaled(size, QtCore.Qt.KeepAspectRatio)
         self.mainPictureView.setPixmap(pixmap)
@@ -233,9 +266,13 @@ class pictureViewer(Ui_MainWindow, QMainWindow):
         if self.cameraViewCheckBox.isChecked():
             self.cameraViewAction.setChecked(True)
             self.cameraView.hide()
+            self.cameraViewIsHide = True
+            self.cameraView.resize(0, 0)
+            self.adjustSize()
         else:
             self.cameraViewAction.setChecked(False)
             self.cameraView.show()
+            self.cameraViewIsHide = False
 
     def onSideBarAction(self):
         if self.sideBarAction.isChecked():
@@ -249,9 +286,13 @@ class pictureViewer(Ui_MainWindow, QMainWindow):
         if self.cameraViewAction.isChecked():
             self.cameraViewCheckBox.setChecked(True)
             self.cameraView.hide()
+            self.cameraViewIsHide = True
+            self.cameraView.resize(0, 0)
+            self.adjustSize()
         else:
             self.cameraViewCheckBox.setChecked(False)
             self.cameraView.show()
+            self.cameraViewIsHide = False
 
     def closeEvent(self, event) -> None:
         super().closeEvent(event)

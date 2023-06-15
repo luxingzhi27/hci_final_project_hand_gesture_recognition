@@ -1,7 +1,3 @@
-# -*- codeing=utf-8 -*-
-# @Author:千钧
-# 人间烟火气，最抚凡人心
-
 from fingersVector import fingersUp, vectorSize, vectorAngle, mkVector, vectorAngle2
 import cv2 as cv
 

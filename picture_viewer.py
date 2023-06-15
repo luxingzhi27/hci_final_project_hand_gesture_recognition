@@ -2,7 +2,7 @@ import typing
 from PyQt5 import QtCore, QtGui
 from picture_viewer_ui import Ui_MainWindow
 from PyQt5.QtWidgets import QMainWindow, QApplication, QGraphicsScene, QGraphicsPixmapItem, QFileDialog, QMessageBox, QWidget, QLabel, QHBoxLayout, QListWidgetItem
-from PyQt5.QtGui import QPixmap, QImage, QIcon
+from PyQt5.QtGui import QPixmap, QImage, QIcon,QColor
 from PyQt5.QtCore import QItemSelection
 import os
 import threading
@@ -61,14 +61,17 @@ class pictureViewer(Ui_MainWindow, QMainWindow):
 
     def addItem(self, name):
         item = QListWidgetItem()
-        widget = QWidget()
-        layout = QHBoxLayout()
-        widget.setLayout(layout)
-        fileName = QLabel(name)
-        layout.addWidget(fileName)
-        item.setSizeHint(widget.sizeHint())
+        # widget = QWidget()
+        # layout = QHBoxLayout()
+        # widget.setLayout(layout)
+        # fileName = QLabel(name)
+        # layout.addWidget(fileName)
+        # item.setSizeHint(widget.sizeHint())
+        item.setText(name)
+        item.setTextAlignment(QtCore.Qt.AlignCenter)
+        item.setIcon(QIcon(os.path.join(self.dirPath,name)))
         self.pictureListWidget.addItem(item)
-        self.pictureListWidget.setItemWidget(item, widget)
+        # self.pictureListWidget.setItemWidget(item, widget)
 
     def next(self):
         if self.currentIndex < self.pictureListWidget.count()-1:
@@ -118,6 +121,8 @@ class pictureViewer(Ui_MainWindow, QMainWindow):
         flipCTime = 3
         flipPTime = 0
 
+        command = 0
+        precommand = 0
         # 摄像头参数设置
         wCap, hCap = 480, 360
         # wCap, hCap = 1280, 720
@@ -133,8 +138,6 @@ class pictureViewer(Ui_MainWindow, QMainWindow):
             ret, frame = video.read()
             frame = cv.flip(frame, 1)
             if ret:
-                command = 0
-                precommand = 0
                 # 手部关键点检测
                 landmarks = handLandmarks(frame)
                 if not isinstance(landmarks, str):
@@ -166,9 +169,6 @@ class pictureViewer(Ui_MainWindow, QMainWindow):
                                 if self.currentIndex < self.pictureListWidget.count()-1:
                                     self.currentIndex += 1
                             print("switch")
-                            print("flipPTime:", flipPTime)
-                            print("flipCTime:", flipCTime)
-                            print()
                             self.pictureListWidget.setCurrentRow(
                                 self.currentIndex)
                             picturePath = os.path.join(
@@ -180,10 +180,12 @@ class pictureViewer(Ui_MainWindow, QMainWindow):
                             self.mainPictureView.setPixmap(pixmap)
                         flipPTime = flipCTime
 
-                    elif command == 2 or command == 6:
+                    elif command == 6:
+                        print("like")
                         self.like()
 
                     elif command == 5 or command == 12:
+                        print("dislike")
                         self.dislike()
 
                 if not self.cameraViewIsHide:
@@ -199,10 +201,16 @@ class pictureViewer(Ui_MainWindow, QMainWindow):
         video.release()
 
     def dislike(self):
-        self.pictureListWidget.currentItem().setIcon(QIcon())
+        self.pictureListWidget.setFocus()
+        self.pictureListWidget.currentItem().setForeground(QColor(0, 0, 0))
+        self.pictureListWidget.clearFocus()
+        self.mainPictureView.setFocus()
 
     def like(self):
-        self.pictureListWidget.currentItem().setIcon(QIcon("resource/heart.png"))
+        self.pictureListWidget.setFocus()
+        self.pictureListWidget.currentItem().setForeground(QColor(255, 0, 0))
+        self.pictureListWidget.clearFocus()
+        self.mainPictureView.setFocus()
 
     def openDir(self):
         self.dirPath = QFileDialog.getExistingDirectory(self, '选择文件夹', './')

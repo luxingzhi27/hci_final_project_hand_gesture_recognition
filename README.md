@@ -1,4 +1,5 @@
-# 基于手势识别的图像浏览器
+# Image Browser Based on Gesture Recognition
+
 | Team member    | task                           |
 | -------------- | ------------------------------ |
 | 2152057 杨瑞华 | Core code logic implementation |
@@ -7,16 +8,22 @@
 
 ## 1. Background
 
-### 1.1Environment
+### 1.1 Environment
+
 compiler: Python3.7+
 
 package needed: opencv-python, MediaPipe, PyQt5
 
-### 1.2How to run
+Use `opencv` to complete the camera video stream reading, use `mediapipe` to build a hand joint point recognition model, use `pyqt5` to build a picture browser `gui` interface.
 
-on the terminal, input `python picture_viewer.py` and enter
+### 1.2 How to run
 
-### 1.3Idea
+There are two ways to run our program:
+
+1. After installing the required operating environment, in the terminal, type `python picture_viewer.py` and enter.
+2. Run the packaged picture_viewer.exe executable program directly.
+
+### 1.3 Idea
 
 We consider that in some scenarios, people may not be able to directly click on devices such as mobile phones or computers for device control. For example, watching a projection screen TV in bed or watching the recipe process while cooking, and not using a mobile phone if you have oil stains on your hands. So we want to do a gesture interaction to control the device through different hand movements. Here, we are controlling the album.
 
@@ -32,7 +39,7 @@ User can perform different operations on the album based on different gestures.
 
 The following is the core structure of the code—–
 
-F:.
+.
 │  fingersVector.py
 │  GestureRecognition.py
 │  HandLandmarks.py
@@ -50,27 +57,265 @@ The resource folder contains some interactive images.
 
 ### 2.3 Code Logic
 
-#### 2.3.1
+- `HandLandmarks.py` calls the `mediapipe` package to recognize the hand model based on machine learning and obtain the coordinates of the 21 joint point models of the hand
 
-We first achieved the ==localization of 21 bone points== in our fingers in `fingersVector.py`
+  ![image-20230616111022910](https://raw.githubusercontent.com/luxingzhi27/picture/main/image-20230616111022910.png)
 
-#### 2.3.2
+  ```python
+  import mediapipe as mp
+  import cv2 as cv
+  
+  # 绘制关键点与连接线函数
+  mp_drawing = mp.solutions.drawing_utils
+  handMsStyle = mp_drawing.DrawingSpec(
+      color=(0, 0, 255), thickness=int(5))  # 关键点样式
+  handConStyle = mp_drawing.DrawingSpec(
+      color=(0, 255, 0), thickness=int(8))  # 关键点连接线样式
+  # 手部检测函数
+  mp_hands = mp.solutions.hands
+  hands = mp_hands.Hands(
+      static_image_mode=False,  # 检测的是视频流还是静态图片，False为视频流，True为图片
+      max_num_hands=1,  # 检测出手的最大数量
+      min_detection_confidence=0.75,  # 首部检测的最小置信度，大于该值则认为检测成功
+      min_tracking_confidence=0.75)  # 目标跟踪模型的最小置信度
+  
+  
+  def handLandmarks(frame):
+      imgRGB = cv.cvtColor(frame, cv.COLOR_BGR2RGB)
+      result = hands.process(imgRGB)
+      hand_point = result.multi_hand_landmarks  # 返回21个手部关键点的坐标，其值为比例
+      # result = hands.process(imgRGB)
+      # hand_point = result.multi_hand_landmarks  # 返回21个手部关键点的坐标，其值为比例
+  
+      landmarks = []
+      # 当关键点存在时
+      if hand_point:
+          for handlms in hand_point:
+              # print(handlms)
+              # 绘制关键点及其连接线，参数：
+              # 绘制的图片，关键点坐标，连接线，点样式，线样式
+              mp_drawing.draw_landmarks(
+                  frame, handlms, mp_hands.HAND_CONNECTIONS, handMsStyle, handConStyle)
+              for i, lm in enumerate(handlms.landmark):
+                  # lm.x表示在图片大小下的比例，乘以图片大小将其转换为队形坐标
+                  posX = int(lm.x * frame.shape[1])
+                  posY = int(lm.y * frame.shape[0])
+                  landmarks.append((posX, posY))  # 21个手部关键点坐标
+                  # 显示关键点
+                  cv.putText(frame, str(i), (posX, posY),
+                             cv.FONT_HERSHEY_PLAIN, 2, (255, 0, 0), thickness=2)
+  
+          return landmarks
+      else:
+          return "error"
+  ```
 
-We ==imaged the identified joint points== and generated a mark images in `HandLandmarks.py`
+- According to the coordinates of the 21 hand points obtained, calculate the connection and position setting relationship of different points in `fingersVector.py`, and get the protruding situation of each finger
 
-HandLandmarks. py calls the mediapipe package to recognize the hand model based on machine learning and obtain the coordinates of the 21 joint point models of the hand
+  ```python
+  import math
+  
+  # 计算向量2范数
+  def vectorSize(p1,p2):
+      return math.sqrt((p1[0]-p2[0])**2+(p1[1]-p2[1])**2)
+  
+  # 余弦定理计算向量夹角
+  def vectorAngle(p1,p2,p3):
+      b = math.sqrt((p2[0] - p1[0]) ** 2 + (p2[1] - p1[1]) ** 2)
+      c = math.sqrt((p2[0] - p3[0]) ** 2 + (p2[1] - p3[1]) ** 2)
+      a = math.sqrt((p3[0] - p1[0]) ** 2 + (p3[1] - p1[1]) ** 2)
+      if ((2 * b * c)>1e-10):
+          cos=(b ** 2 + c ** 2 - a ** 2) / (2 * b * c)
+          if cos>1:
+              cos=1
+          elif cos<-1:
+              cos=-1
+          angle = math.acos(cos)
+      return math.degrees(angle)
+  
+  # 由坐标点构造向量
+  def mkVector(p1,p2):
+      return [(p1[0]-p2[0]),(p1[1]-p2[1])]
+  
+  # 计算两个向量的夹角
+  def vectorAngle2(v1,v2):
+      nor=0.0
+      a=0.0
+      b=0.0
+      for x,y in zip(v1,v2):
+          nor+=x*y#向量内积
+          a+=x**2
+          b+=y**2
+      if a==0 or b==0:
+          return None
+      cosTheta=nor/math.sqrt(a*b)
+      angle=math.acos(cosTheta)
+      return math.degrees(angle)
+  
+  # 判断手指是否张开
+  def fingersUp(landmarks):
+      fingers=[]
+      # 大拇指
+      if vectorAngle(landmarks[0],landmarks[3],landmarks[4])>130:
+          fingers.append(1)
+      else:
+          fingers.append(0)
+  
+      # 食指
+      if vectorSize(landmarks[0],landmarks[8])>vectorSize(landmarks[0],landmarks[6]):
+          fingers.append(1)
+      else:
+          fingers.append(0)
+  
+      # 中指
+      if vectorSize(landmarks[0],landmarks[12])>vectorSize(landmarks[0],landmarks[10]):
+          fingers.append(1)
+      else:
+          fingers.append(0)
+  
+       # 无名指
+      if vectorSize(landmarks[0],landmarks[16])>vectorSize(landmarks[0],landmarks[14]):
+          fingers.append(1)
+      else:
+          fingers.append(0)
+  
+       # 小拇指
+      if vectorSize(landmarks[0],landmarks[20])>vectorSize(landmarks[0],landmarks[18]):
+          fingers.append(1)
+      else:
+          fingers.append(0)
+  
+      return fingers
+  ```
 
-![image-20230616111022910](./assets/image-20230616111022910.png)
+- Different gestures are recognized according to the extension of different fingers, the position coordinates of the center of gravity of the palm in the two frames before and after, and the angles between the vectors of different joint points, and different gestures are obtained according to the returned `command`
 
-#### 2.3.3
+  ```python
+  commands = {1: "OK",
+              2: "thumb",
+              3: "fist",
+              4: "middle",
+              5: "spider",
+              6: "heart",
+              7: "hand",
+              8: "right",
+              9: "left",
+              10: "index",
+              11: "ring",
+              12: "little"}
+  ```
 
-Then we ==set the different gestures== based on the recognized joint point images in `GestureRecognition.py`
+  ```python
+  from fingersVector import fingersUp, vectorSize, vectorAngle, mkVector, vectorAngle2
+  import cv2 as cv
+  
+  
+  def staticGestureRec(landmark):
+      command = 0
+      fingers = fingersUp(landmark)
+      if (fingers[0] == 0 and fingers[1] == 0 and fingers[2] == 1 and fingers[3] == 1 and fingers[4] == 1):
+          command = 1
+          # print("OK")
+      if (fingers[0] == 1 and fingers[1] == 0 and fingers[2] == 0 and fingers[3] == 0 and fingers[4] == 0):
+          command = 2
+          # print("大拇指")
+      if (fingers[0] == 0 and fingers[1] == 1 and fingers[2] == 0 and fingers[3] == 0 and fingers[4] == 0):
+          command = 10
+          # print("食指")
+  
+      if (fingers[0] == 0 and fingers[1] == 0 and fingers[2] == 0 and fingers[3] == 1 and fingers[4] == 0):
+          command = 11
+          # print("无名指")
+  
+      if (fingers[0] == 0 and fingers[1] == 0 and fingers[2] == 0 and fingers[3] == 0 and fingers[4] == 1):
+          command = 12
+          # print("小拇指")
+  
+      if (fingers[0] == 0 and fingers[1] == 0 and fingers[2] == 0 and fingers[3] == 0 and fingers[4] == 0):
+          command = 3
+          # print("拳头")
+  
+      if (fingers[0] == 0 and fingers[1] == 0 and fingers[2] == 1 and fingers[3] == 0 and fingers[4] == 0):
+          command = 4
+          # print("中指")
+  
+      if (fingers[0] == 1 and fingers[1] == 1 and fingers[2] == 0 and fingers[3] == 0 and fingers[4] == 1):
+          command = 5
+          # print("spider")
+  
+      if (fingers[0] == 1 and fingers[1] == 1 and fingers[2] == 0 and fingers[3] == 0 and fingers[4] == 0
+              and vectorSize(landmark[3], landmark[6]) < 20 and vectorAngle(landmark[4], landmark[6], landmark[8]) < 90):
+          command = 6
+          # print("比心")
+      if (fingers[0] == 1 and fingers[1] == 1 and fingers[2] == 1 and fingers[3] == 1 and fingers[4] == 1):
+          command = 7
+          # print("手掌")
+      return command
+  
+  
+  def gestureRecognition(frame, landmarks, preCenter):
+      # 静态手势识别
+      command = staticGestureRec(landmarks)
+  
+      # 动态手势识别
+      curCenter = landmarks[9]
+      cv.circle(frame, curCenter, 10, (0, 255, 255), -1)
+      centerVector = mkVector(curCenter, preCenter)  # 构造帧差向量
+      curPreSize = vectorSize(preCenter, curCenter)  # 控制手势帧差大小区域
+      xAxis = [1, 0]
+      angle = vectorAngle2(centerVector, xAxis)  # 控制手势帧差角度区域
+      if centerVector[0] > 0 and curPreSize > 180 and angle < 30:
+          command = 8
+          print("right")
+  
+      if centerVector[0] < 0 and curPreSize > 180 and angle > 150:
+          command = 9
+          print("left")
+  
+      return curCenter, command
+  ```
 
-#### 2.3.4
+- Perform different operation logic in `picture_viewer.py` according to different gestures
 
-Finally, we designed the interface window and called relevant functions in the window to realize our album interaction function in `picture_viewer.py`
+  ```python
+  if command != 0:
+                      cv.putText(frame, commands[command], (170, 50),
+                                 cv.FONT_HERSHEY_COMPLEX_SMALL, 2, (0, 0, 255), thickness=2)
+                  if command != 0 and self.pictureListWidget.count() > 0 and precommand != command:
+  
+                      precommand = command
+  
+                      if command in [8, 9]:
+                          flipCTime = time.time()
+                          if flipCTime-flipPTime > 1.5:
+                              if command == 8:
+                                  if self.currentIndex > 0:
+                                      self.currentIndex -= 1
+                              elif command == 9:
+                                  if self.currentIndex < self.pictureListWidget.count()-1:
+                                      self.currentIndex += 1
+                              print("switch")
+                              self.pictureListWidget.setCurrentRow(
+                                  self.currentIndex)
+                              picturePath = os.path.join(
+                                  self.dirPath, self.currentPictureList[self.currentIndex])
+                              pixmap = QPixmap(picturePath)
+                              size = self.mainPictureView.size()
+                              pixmap = pixmap.scaled(
+                                  size, QtCore.Qt.KeepAspectRatio)
+                              self.mainPictureView.setPixmap(pixmap)
+                          flipPTime = flipCTime
+  
+                      elif command == 6:
+                          print("like")
+                          self.like()
+  
+                      elif command == 5 or command == 12:
+                          print("dislike")
+                          self.dislike()
+  ```
 
-## 3.The implemented requirements
+## 3. The implemented requirements
 
 As mentioned above, our interaction system provides several basic functions —– flipping, praising, and canceling.
 
@@ -78,26 +323,26 @@ The system has high scalability .
 
 Our gestures include: 
 
-### 3.1static gesture recognition
+### 3.1 static gesture recognition
 
 By calculating the vector angle and size between the coordinates of 21 joint points, calculate the extension of each finger, and then calculate different gestures.
 
-| Gesture | core code                                                    |
-| ------- | ------------------------------------------------------------ |
-| OK      | fingers[0] == 0 and fingers[1] == 0 and fingers[2] == 1 and fingers[3] == 1 and fingers[4] == 1 |
-| 大拇指  | fingers[0] == 1 and fingers[1] == 0 and fingers[2] == 0 and fingers[3] == 0 and fingers[4] == 0 |
-| 食指    | fingers[0] == 0 and fingers[1] == 1 and fingers[2] == 0 and fingers[3] == 0 and fingers[4] == 0 |
-| 中指    | fingers[0] == 0 and fingers[1] == 0 and fingers[2] == 1 and fingers[3] == 0 and fingers[4] == 0 |
-| 无名指  | fingers[0] == 0 and fingers[1] == 0 and fingers[2] == 0 and fingers[3] == 1 and fingers[4] == 0 |
-| 小拇指  | fingers[0] == 0 and fingers[1] == 0 and fingers[2] == 0 and fingers[3] == 0 and fingers[4] == 1 |
-| 拳头    | fingers[0] == 0 and fingers[1] == 0 and fingers[2] == 0 and fingers[3] == 0 and fingers[4] == 0 |
-| 手掌    | fingers[0] == 1 and fingers[1] == 1 and fingers[2] == 1 and fingers[3] == 1 and fingers[4] == 1 |
-| heart   | fingers[0] == 1 and fingers[1] == 1 and fingers[2] == 0 and fingers[3] == 0 and fingers[4] == 0            and vectorSize(landmark[3], landmark[6]) < 20 and vectorAngle(landmark[4], landmark[6], landmark[8]) < 90 |
-| spider  | fingers[0] == 1 and fingers[1] == 1 and fingers[2] == 0 and fingers[3] == 0 and fingers[4] == 1 |
+| Gesture       | core code                                                    |
+| ------------- | ------------------------------------------------------------ |
+| OK            | fingers[0] == 0 and fingers[1] == 0 and fingers[2] == 1 and fingers[3] == 1 and fingers[4] == 1 |
+| thumbs        | fingers[0] == 1 and fingers[1] == 0 and fingers[2] == 0 and fingers[3] == 0 and fingers[4] == 0 |
+| index finger  | fingers[0] == 0 and fingers[1] == 1 and fingers[2] == 0 and fingers[3] == 0 and fingers[4] == 0 |
+| middle finger | fingers[0] == 0 and fingers[1] == 0 and fingers[2] == 1 and fingers[3] == 0 and fingers[4] == 0 |
+| ring finger   | fingers[0] == 0 and fingers[1] == 0 and fingers[2] == 0 and fingers[3] == 1 and fingers[4] == 0 |
+| little finger | fingers[0] == 0 and fingers[1] == 0 and fingers[2] == 0 and fingers[3] == 0 and fingers[4] == 1 |
+| fist          | fingers[0] == 0 and fingers[1] == 0 and fingers[2] == 0 and fingers[3] == 0 and fingers[4] == 0 |
+| palm          | fingers[0] == 1 and fingers[1] == 1 and fingers[2] == 1 and fingers[3] == 1 and fingers[4] == 1 |
+| heart         | fingers[0] == 1 and fingers[1] == 1 and fingers[2] == 0 and fingers[3] == 0 and fingers[4] == 0            and vectorSize(landmark[3], landmark[6]) < 20 and vectorAngle(landmark[4], landmark[6], landmark[8]) < 90 |
+| spider        | fingers[0] == 1 and fingers[1] == 1 and fingers[2] == 0 and fingers[3] == 0 and fingers[4] == 1 |
 
 ![image-20230616111052696](./assets/image-20230616111052696.png)
 
-### 3.2dynamic gesture recognition
+### 3.2 dynamic gesture recognition
 
 By marking the position vectors of the hand center of gravity before and after the two frames, calculating the angle between the vector and the x-direction, as well as the length of the vector, the dynamic gesture of left and right swing is recognized.
 
@@ -106,22 +351,22 @@ By marking the position vectors of the hand center of gravity before and after t
 | left    | centerVector[0] < 0 and curPreSize > 180 and angle > 150 |
 | right   | centerVector[0] > 0 and curPreSize > 180 and angle < 30  |
 
-### 3.3interactive functions
+### 3.3 interactive functions
 
 Our interactive functions include the following points:
 
-| gesture       | interactive function                |
-| ------------- | ----------------------------------- |
-| left          | Flip the album to the next page     |
-| right         | Flip the album to the previous one  |
-| heart         | Set the current photo as a favorite |
-| spider/小拇指 | Cancel likes                        |
+| gesture            | interactive function                |
+| ------------------ | ----------------------------------- |
+| left               | Flip the album to the next page     |
+| right              | Flip the album to the previous one  |
+| heart              | Set the current photo as a favorite |
+| spider/ring finger | Cancel likes                        |
 
 ![image-20230616111218306](./assets/image-20230616111218306.png)
 
 ## 4. Advantages and Disadvantages
 
-### 4.1Advantages
+### 4.1 Advantages
 
 #### Intuitive 
 
@@ -143,7 +388,7 @@ Consider incorporating more features into gesture design to provide more operati
 
 Allowing users to customize gestures is an interesting design option. In this way, users can set gestures according to their preferences and habits, increasing personalization and user engagement.
 
-### 4.2Disadvantages
+### 4.2 Disadvantages
 
 #### Relatively simple
 
